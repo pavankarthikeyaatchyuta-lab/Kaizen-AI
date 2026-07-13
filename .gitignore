@@ -1,0 +1,28 @@
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Application specific
+chroma_db/
+uploads/
+exports/
+models/
+
+# Frontend
+node_modules/
+dist/
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/
