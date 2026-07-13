@@ -81,6 +81,26 @@ python main.py
 open http://localhost:8000/docs
 ```
 
+## Free Cloud Deployment (Vercel + Render)
+
+Kaizen AI is fully configured to be deployed for free on Vercel (Frontend) and Render (Backend).
+
+**1. Deploy Backend (Render)**
+- Create a new Web Service on [Render](https://render.com).
+- Connect your GitHub repository.
+- Render will automatically detect the `render.yaml` and `Dockerfile` to configure the environment.
+- Add your `GEMINI_API_KEY` to the Environment Variables.
+- Copy your deployed backend URL.
+
+*Note: Render's free tier uses an ephemeral filesystem. Your ChromaDB and models will reset if the server goes to sleep. For persistence, upgrade to a paid disk.*
+
+**2. Deploy Frontend (Vercel)**
+- Create a new project on [Vercel](https://vercel.com) and link your GitHub repository.
+- Set the **Root Directory** to `frontend`.
+- Add an Environment Variable: `VITE_API_URL` with your Render backend URL.
+- Deploy.
+
+
 ## Core Modules
 
 | File | Purpose |
