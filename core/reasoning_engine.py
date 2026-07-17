@@ -365,8 +365,20 @@ Structure: Root Cause -> Evidence -> Risk Assessment -> Recommended Actions -> K
             response = self.llm.generate_content(prompt)
             explanation = response.text
         except Exception as e:
-            logger.error(f"LLM call failed: {e}")
-            explanation = self._fallback_explanation(fused)
+            logger.error(f"Gemini LLM call failed: {e}. Falling back to Groq...")
+            try:
+                import groq
+                client = groq.Groq(api_key=os.getenv("GROQ_API_KEY", ""))
+                chat_completion = client.chat.completions.create(
+                    messages=[
+                        {"role": "user", "content": prompt}
+                    ],
+                    model="llama3-8b-8192",
+                )
+                explanation = chat_completion.choices[0].message.content
+            except Exception as groq_e:
+                logger.error(f"Groq fallback failed: {groq_e}")
+                explanation = self._fallback_explanation(fused)
 
         return self._build_response(user_query, intent, fused, explanation)
 
