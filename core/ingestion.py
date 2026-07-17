@@ -265,12 +265,17 @@ def extract_pdf(filepath: str, doc_id: str) -> tuple[list, dict]:
                 ocr_used = True
                 pix = page.get_pixmap(dpi=200)
                 img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-                ocr_data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT,
-                                                      config='--psm 6')
-                confs = [c for c in ocr_data["conf"] if c != -1]
-                page_ocr_confidence = (sum(confs) / len(confs) / 100) if confs else 0.5
-                ocr_confidences.append(page_ocr_confidence)
-                raw_text = pytesseract.image_to_string(img, config='--psm 6')
+                try:
+                    ocr_data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT,
+                                                          config='--psm 6')
+                    confs = [c for c in ocr_data["conf"] if c != -1]
+                    page_ocr_confidence = (sum(confs) / len(confs) / 100) if confs else 0.5
+                    ocr_confidences.append(page_ocr_confidence)
+                    raw_text = pytesseract.image_to_string(img, config='--psm 6')
+                except Exception as e:
+                    logger.warning(f"OCR failed or not installed: {e}")
+                    ocr_confidences.append(0.0)
+                    raw_text = ""
             else:
                 ocr_confidences.append(1.0)
 
@@ -439,11 +444,16 @@ def extract_image(filepath: str, doc_id: str) -> tuple[list, dict]:
     filename = Path(filepath).name
     try:
         img = Image.open(filepath)
-        ocr_data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT,
-                                              config='--psm 6')
-        confs = [c for c in ocr_data["conf"] if c != -1]
-        ocr_conf = (sum(confs) / len(confs) / 100) if confs else 0.5
-        text = pytesseract.image_to_string(img, config='--psm 6').strip()
+        try:
+            ocr_data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT,
+                                                  config='--psm 6')
+            confs = [c for c in ocr_data["conf"] if c != -1]
+            ocr_conf = (sum(confs) / len(confs) / 100) if confs else 0.5
+            text = pytesseract.image_to_string(img, config='--psm 6').strip()
+        except Exception as e:
+            logger.warning(f"OCR failed or not installed: {e}")
+            ocr_conf = 0.0
+            text = ""
 
         if not text:
             return [], {"ocr_used": True, "avg_ocr_confidence": 0.0, "page_count": 0}

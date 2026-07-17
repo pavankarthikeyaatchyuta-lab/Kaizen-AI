@@ -11,8 +11,7 @@ openpyxl>=3.1.4
 xlrd>=2.0.1
 
 # Vector store + embeddings
-chromadb>=0.5.3
-sentence-transformers>=3.0.1
+# (Switched to Upstash Vector REST API and Gemini Embeddings for Serverless)
 
 # Knowledge graph
 networkx>=3.3

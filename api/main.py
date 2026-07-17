@@ -76,11 +76,10 @@ class AppState:
 state = AppState()
 
 UPLOAD_DIR  = Path("./uploads")
-CHROMA_DIR  = Path("./chroma_db")
 MODELS_DIR  = Path("./models")
 EXPORTS_DIR = Path("./exports")
 
-for d in [UPLOAD_DIR, CHROMA_DIR, MODELS_DIR, EXPORTS_DIR]:
+for d in [UPLOAD_DIR, MODELS_DIR, EXPORTS_DIR]:
     d.mkdir(exist_ok=True)
 
 
@@ -90,7 +89,7 @@ async def startup():
     state.startup_time = datetime.utcnow().isoformat()
 
     state.doc_registry    = DocumentRegistry()
-    state.vector_store    = VectorStore(persist_dir=str(CHROMA_DIR))
+    state.vector_store    = VectorStore()
     state.knowledge_graph = KaizenKnowledgeGraph()
 
     # Load or train ML model

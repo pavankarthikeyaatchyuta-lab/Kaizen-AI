@@ -18,8 +18,7 @@ from dataclasses import dataclass, field, asdict
 from typing import Optional
 from datetime import datetime
 
-import chromadb
-from chromadb.utils import embedding_functions
+import httpx
 import google.generativeai as genai
 from dotenv import load_dotenv
 
@@ -197,74 +196,112 @@ def evaluate_rules(sensor_data: dict) -> list:
 # ─── Vector Store ─────────────────────────────────────────────────────────────
 
 class VectorStore:
-    def __init__(self, persist_dir: str = "./chroma_db"):
-        self.client = chromadb.PersistentClient(path=persist_dir)
-        self.ef = embedding_functions.DefaultEmbeddingFunction()
-        self.collection = self.client.get_or_create_collection(
-            name="kaizen_chunks",
-            embedding_function=self.ef,
-            metadata={"hnsw:space": "cosine"}
-        )
-        logger.info(f"VectorStore ready — {self.collection.count()} chunks indexed")
+    def __init__(self, persist_dir: str = None):
+        self.url = os.getenv("UPSTASH_VECTOR_REST_URL", "").rstrip("/")
+        self.token = os.getenv("UPSTASH_VECTOR_REST_TOKEN", "")
+        if not self.url or not self.token:
+            logger.warning("Upstash Vector credentials missing. Vector search will be disabled.")
+        self.headers = {"Authorization": f"Bearer {self.token}"}
+        logger.info("VectorStore (Upstash Serverless) initialized")
+
+    def _get_embedding(self, text: str) -> list:
+        try:
+            result = genai.embed_content(
+                model="models/text-embedding-004",
+                content=text,
+                task_type="retrieval_document"
+            )
+            return result['embedding']
+        except Exception as e:
+            logger.error(f"Embedding failed: {e}")
+            return []
 
     def add_chunks(self, chunks: list):
-        if not chunks:
+        if not chunks or not self.url:
             return
-        ids, docs, metas = [], [], []
+        
+        vectors = []
         for chunk in chunks:
-            ids.append(chunk.chunk_id)
-            docs.append(chunk.content[:2000])
-            metas.append({
-                "doc_id":      chunk.doc_id,
-                "source_file": chunk.source_file,
-                "doc_type":    chunk.doc_type,
-                "section":     str(chunk.metadata.get("section", "")),
-                "heading":     str(chunk.metadata.get("heading", "")),
-                "page":        str(chunk.metadata.get("page", "")),
-                "trust_score": str(chunk.metadata.get("doc_trust_score", 1.0)),
-                "ocr":         str(chunk.metadata.get("ocr", False)),
+            content = chunk.content[:2000]
+            emb = self._get_embedding(content)
+            if not emb: continue
+            
+            vectors.append({
+                "id": chunk.chunk_id,
+                "vector": emb,
+                "metadata": {
+                    "doc_id":      chunk.doc_id,
+                    "source_file": chunk.source_file,
+                    "doc_type":    chunk.doc_type,
+                    "section":     str(chunk.metadata.get("section", "")),
+                    "heading":     str(chunk.metadata.get("heading", "")),
+                    "page":        str(chunk.metadata.get("page", "")),
+                    "trust_score": str(chunk.metadata.get("doc_trust_score", 1.0)),
+                    "ocr":         str(chunk.metadata.get("ocr", False)),
+                    "content":     content
+                }
             })
-        for i in range(0, len(ids), 100):
-            self.collection.upsert(
-                ids=ids[i:i+100],
-                documents=docs[i:i+100],
-                metadatas=metas[i:i+100],
-            )
-        logger.info(f"Indexed {len(ids)} chunks. Total: {self.collection.count()}")
+            
+        for i in range(0, len(vectors), 50):
+            batch = vectors[i:i+50]
+            try:
+                r = httpx.post(f"{self.url}/upsert", headers=self.headers, json=batch, timeout=15.0)
+                r.raise_for_status()
+            except Exception as e:
+                logger.error(f"Upstash upsert failed: {e}")
+                
+        logger.info(f"Indexed {len(vectors)} chunks to Upstash.")
 
-    def search(self, query: str, n_results: int = 5,
-               doc_type_filter: str = None) -> list:
-        where = {"doc_type": doc_type_filter} if doc_type_filter else None
-        try:
-            results = self.collection.query(
-                query_texts=[query],
-                n_results=min(n_results, max(1, self.collection.count())),
-                where=where,
-                include=["documents", "metadatas", "distances"],
-            )
-        except Exception as e:
-            logger.warning(f"Vector search error: {e}")
+    def search(self, query: str, n_results: int = 5, doc_type_filter: str = None) -> list:
+        if not self.url:
             return []
+            
+        emb = self._get_embedding(query)
+        if not emb: return []
+        
+        payload = {
+            "vector": emb,
+            "topK": n_results,
+            "includeMetadata": True
+        }
+        
+        try:
+            r = httpx.post(f"{self.url}/query", headers=self.headers, json=payload, timeout=10.0)
+            r.raise_for_status()
+            results = r.json().get("result", [])
+        except Exception as e:
+            logger.error(f"Upstash search failed: {e}")
+            return []
+            
         evidence = []
-        for doc, meta, dist in zip(results["documents"][0],
-                                    results["metadatas"][0],
-                                    results["distances"][0]):
-            relevance = max(0.0, 1.0 - dist)
+        for match in results:
+            meta = match.get("metadata", {})
+            if doc_type_filter and meta.get("doc_type") != doc_type_filter:
+                continue
+                
+            relevance = match.get("score", 0.0)
             trust = float(meta.get("trust_score", 1.0))
             section = meta.get("heading") or meta.get("section") or f"Page {meta.get('page','?')}"
+            
             evidence.append(DocumentEvidence(
                 source_file=meta.get("source_file", "unknown"),
                 section=section,
-                content=doc,
+                content=meta.get("content", ""),
                 relevance_score=round(relevance, 3),
                 trust_score=round(trust, 3),
                 ocr=meta.get("ocr", "False") == "True",
-                chunk_id=meta.get("doc_id", ""),
+                chunk_id=match.get("id", ""),
             ))
+            
         return sorted(evidence, key=lambda e: e.weighted_confidence, reverse=True)
 
     def count(self) -> int:
-        return self.collection.count()
+        if not self.url: return 0
+        try:
+            r = httpx.get(f"{self.url}/info", headers=self.headers, timeout=5.0)
+            return r.json().get("vectorCount", 0)
+        except Exception:
+            return 0
 
 
 # ─── Industrial Reasoning Engine ──────────────────────────────────────────────
