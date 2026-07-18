@@ -17,11 +17,9 @@ from pathlib import Path
 from typing import Optional
 from dataclasses import dataclass, field
 
-import fitz  # PyMuPDF
-import pytesseract
-from PIL import Image
+import PyPDF2
 import docx
-import pandas as pd
+import openpyxl
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -243,50 +241,24 @@ def section_depth(number: str) -> tuple:
 # ─── PDF Extractor ────────────────────────────────────────────────────────────
 
 def extract_pdf(filepath: str, doc_id: str) -> tuple[list, dict]:
-    """
-    Returns (chunks, stats).
-    stats: {ocr_used, avg_ocr_confidence, page_count}
-    """
+    import PyPDF2
     chunks = []
     filename = Path(filepath).name
-    ocr_confidences = []
-    ocr_used = False
     full_text_parts = []
-
     try:
-        doc = fitz.open(filepath)
-
-        for page_num, page in enumerate(doc):
-            raw_text = page.get_text("text").strip()
-            page_ocr_confidence = 1.0
-
-            if len(raw_text) < 50:
-                # Scanned page — use OCR
-                ocr_used = True
-                pix = page.get_pixmap(dpi=200)
-                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-                try:
-                    ocr_data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT,
-                                                          config='--psm 6')
-                    confs = [c for c in ocr_data["conf"] if c != -1]
-                    page_ocr_confidence = (sum(confs) / len(confs) / 100) if confs else 0.5
-                    ocr_confidences.append(page_ocr_confidence)
-                    raw_text = pytesseract.image_to_string(img, config='--psm 6')
-                except Exception as e:
-                    logger.warning(f"OCR failed or not installed: {e}")
-                    ocr_confidences.append(0.0)
-                    raw_text = ""
-            else:
-                ocr_confidences.append(1.0)
-
-            if raw_text.strip():
-                full_text_parts.append(raw_text)
-
+        with open(filepath, "rb") as f:
+            reader = PyPDF2.PdfReader(f)
+            num_pages = len(reader.pages)
+            for page_num in range(num_pages):
+                page = reader.pages[page_num]
+                raw_text = page.extract_text()
+                if raw_text and raw_text.strip():
+                    full_text_parts.append(raw_text.strip())
+            
         full_text = "\n".join(full_text_parts)
         doc_type = classify_document(full_text[:2000], filename)
         headers = parse_section_headers(full_text)
 
-        # Build hierarchical chunks by section
         if headers:
             for i, (sec_num, heading, offset) in enumerate(headers):
                 next_offset = headers[i+1][2] if i+1 < len(headers) else len(full_text)
@@ -295,57 +267,30 @@ def extract_pdf(filepath: str, doc_id: str) -> tuple[list, dict]:
                     continue
                 chapter, section, subsection = section_depth(sec_num)
                 chunk_id = f"{doc_id}_s{sec_num.replace('.','_')}"
-
-                # Estimate page from offset ratio
-                approx_page = max(1, int((offset / max(len(full_text), 1)) * len(doc)) + 1)
-                # Estimate OCR confidence for this section
-                page_conf = ocr_confidences[min(approx_page - 1, len(ocr_confidences) - 1)]
-
+                approx_page = max(1, int((offset / max(len(full_text), 1)) * num_pages) + 1)
+                
                 chunks.append(DocumentChunk(
-                    chunk_id=chunk_id,
-                    doc_id=doc_id,
-                    source_file=filename,
-                    doc_type=doc_type,
-                    content=content[:2000],
+                    chunk_id=chunk_id, doc_id=doc_id, source_file=filename,
+                    doc_type=doc_type, content=content[:2000],
                     metadata={
-                        "page": approx_page,
-                        "chapter": chapter,
-                        "section": section,
-                        "subsection": subsection,
-                        "heading": heading,
-                        "section_number": sec_num,
-                        "ocr": ocr_used,
-                        "ocr_confidence": round(page_conf, 3),
-                        "chunk_confidence": round(page_conf, 3),
+                        "page": approx_page, "chapter": chapter, "section": section,
+                        "subsection": subsection, "heading": heading, "section_number": sec_num,
+                        "ocr": False, "ocr_confidence": 1.0, "chunk_confidence": 1.0,
                     }
                 ))
         else:
-            # Fallback: page-based chunks
             word_list = full_text.split()
             chunk_size = 400
             for i in range(0, len(word_list), chunk_size):
                 content = " ".join(word_list[i:i+chunk_size])
-                approx_page = max(1, int((i / max(len(word_list), 1)) * len(doc)) + 1)
-                page_conf = ocr_confidences[min(approx_page - 1, len(ocr_confidences) - 1)]
+                approx_page = max(1, int((i / max(len(word_list), 1)) * num_pages) + 1)
                 chunk_id = f"{doc_id}_p{approx_page}_c{i//chunk_size}"
                 chunks.append(DocumentChunk(
-                    chunk_id=chunk_id,
-                    doc_id=doc_id,
-                    source_file=filename,
-                    doc_type=doc_type,
-                    content=content,
-                    metadata={
-                        "page": approx_page,
-                        "ocr": ocr_used,
-                        "ocr_confidence": round(page_conf, 3),
-                        "chunk_confidence": round(page_conf, 3),
-                    }
+                    chunk_id=chunk_id, doc_id=doc_id, source_file=filename,
+                    doc_type=doc_type, content=content,
+                    metadata={"page": approx_page, "ocr": False, "ocr_confidence": 1.0, "chunk_confidence": 1.0}
                 ))
-
-        doc.close()
-        avg_ocr_conf = sum(ocr_confidences) / len(ocr_confidences) if ocr_confidences else 1.0
-        return chunks, {"ocr_used": ocr_used, "avg_ocr_confidence": avg_ocr_conf, "page_count": len(doc)}
-
+        return chunks, {"ocr_used": False, "avg_ocr_confidence": 1.0, "page_count": num_pages}
     except Exception as e:
         logger.error(f"PDF extraction failed for {filename}: {e}")
         return [], {"ocr_used": False, "avg_ocr_confidence": 0.0, "page_count": 0}
@@ -410,29 +355,24 @@ def extract_docx(filepath: str, doc_id: str) -> tuple[list, dict]:
 # ─── Excel Extractor ──────────────────────────────────────────────────────────
 
 def extract_excel(filepath: str, doc_id: str) -> tuple[list, dict]:
+    import openpyxl
     filename = Path(filepath).name
     chunks = []
     try:
-        xl = pd.ExcelFile(filepath)
-        for sheet_name in xl.sheet_names:
-            df = xl.parse(sheet_name).fillna("")
-            records = [
-                " | ".join(f"{col}: {val}" for col, val in row.items() if str(val).strip())
-                for _, row in df.iterrows()
-            ]
-            for i in range(0, len(records), 20):
-                content = "\n".join(records[i:i+20])
-                chunk_id = f"{doc_id}_{sheet_name[:12]}_r{i}"
-                chunks.append(DocumentChunk(
-                    chunk_id=chunk_id, doc_id=doc_id, source_file=filename,
-                    doc_type=classify_document(sheet_name + content[:300], filename),
-                    content=content,
-                    metadata={"section": sheet_name, "ocr": False,
-                              "ocr_confidence": 1.0, "chunk_confidence": 1.0,
-                              "row_start": i, "row_end": i + 20}
-                ))
+        wb = openpyxl.load_workbook(filepath, data_only=True)
+        for sheet_name in wb.sheetnames:
+            sheet = wb[sheet_name]
+            content = ""
+            for row in sheet.iter_rows(values_only=True):
+                content += " | ".join(str(v) for v in row if v is not None) + "\n"
+            chunk_id = f"{doc_id}_{sheet_name[:12]}"
+            chunks.append(DocumentChunk(
+                chunk_id=chunk_id, doc_id=doc_id, source_file=filename,
+                doc_type=classify_document(sheet_name + content[:300], filename),
+                content=content[:2000],
+                metadata={"section": sheet_name, "ocr": False, "ocr_confidence": 1.0, "chunk_confidence": 1.0}
+            ))
         return chunks, {"ocr_used": False, "avg_ocr_confidence": 1.0, "page_count": 0}
-
     except Exception as e:
         logger.error(f"Excel extraction failed: {e}")
         return [], {"ocr_used": False, "avg_ocr_confidence": 0.0, "page_count": 0}
@@ -442,36 +382,8 @@ def extract_excel(filepath: str, doc_id: str) -> tuple[list, dict]:
 
 def extract_image(filepath: str, doc_id: str) -> tuple[list, dict]:
     filename = Path(filepath).name
-    try:
-        img = Image.open(filepath)
-        try:
-            ocr_data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT,
-                                                  config='--psm 6')
-            confs = [c for c in ocr_data["conf"] if c != -1]
-            ocr_conf = (sum(confs) / len(confs) / 100) if confs else 0.5
-            text = pytesseract.image_to_string(img, config='--psm 6').strip()
-        except Exception as e:
-            logger.warning(f"OCR failed or not installed: {e}")
-            ocr_conf = 0.0
-            text = ""
-
-        if not text:
-            return [], {"ocr_used": True, "avg_ocr_confidence": 0.0, "page_count": 0}
-
-        chunk_id = f"{doc_id}_img"
-        chunk = DocumentChunk(
-            chunk_id=chunk_id, doc_id=doc_id, source_file=filename,
-            doc_type=classify_document(text[:1000], filename),
-            content=text,
-            metadata={"page": 1, "ocr": True,
-                      "ocr_confidence": round(ocr_conf, 3),
-                      "chunk_confidence": round(ocr_conf, 3)}
-        )
-        return [chunk], {"ocr_used": True, "avg_ocr_confidence": ocr_conf, "page_count": 1}
-
-    except Exception as e:
-        logger.error(f"Image extraction failed: {e}")
-        return [], {"ocr_used": True, "avg_ocr_confidence": 0.0, "page_count": 0}
+    logger.warning("Image extraction not supported in serverless mode.")
+    return [], {"ocr_used": False, "avg_ocr_confidence": 0.0, "page_count": 0}
 
 
 # ─── Version Deduplication Registry ──────────────────────────────────────────
