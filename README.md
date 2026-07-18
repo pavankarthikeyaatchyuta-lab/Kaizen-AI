@@ -1,138 +1,119 @@
-# ⚙ Kaizen AI
-### Industrial Knowledge Intelligence Platform
-*Turning Industrial Documents into Operational Decisions.*
+<div align="center">
+  <h1>⚙️ Kaizen AI</h1>
+  <h3>Industrial Knowledge Intelligence Platform</h3>
+  <i>Turning Industrial Documents into Operational Decisions.</i>
+</div>
+
+---
+
+**Kaizen AI** is an advanced Industrial Intelligence Agent designed to prevent catastrophic equipment failures. Traditional maintenance relies on static schedules or simple threshold alerts. Kaizen AI fuses **Live Sensor Telemetry**, **Predictive Machine Learning (XGBoost)**, and an **Agentic RAG Pipeline** (powered by Upstash Vector & Knowledge Graphs) to reason over your plant's technical manuals in real-time. 
 
 Named after the Japanese philosophy of continuous improvement — Kaizen AI gets smarter with every document your plant uploads.
 
----
+## 🏗 Architecture
 
-## Architecture
+Unlike standard chatbots, Kaizen AI uses a multi-layered Intelligence architecture where the LLM is the *consumer* of intelligence, not the intelligence itself.
 
-```
-Documents (PDF/DOCX/Excel/Images)
-        │
-        ▼
-┌─────────────────────┐
-│  Document Ingestion  │  OCR · Section-aware chunking · Entity extraction
-│  (ingestion.py)      │  Version detection · Trust scoring
-└──────────┬──────────┘
-           │
-     ┌─────┴──────┐
-     ▼            ▼
-┌─────────┐  ┌──────────┐
-│ Vector  │  │Knowledge │  NetworkX graph · Equipment/Component/Failure
-│  Store  │  │  Graph   │  Maintenance/Technician/Document nodes
-│(ChromaDB│  │  (KG)    │  Auto-relationship discovery
-└────┬────┘  └────┬─────┘
-     │             │
-     └──────┬──────┘
-            │         ┌──────────────┐
-            ▼         │  ML Engine   │  XGBoost RUL predictor
-     ┌─────────────┐  │  (ml_engine) │  Failure classifier
-     │  Industrial │◄─┤              │  Synthetic degradation data
-     │  Reasoning  │  └──────────────┘
-     │  Engine     │
-     └──────┬──────┘
-            │  Evidence Fusion · Confidence scoring
+```text
+Documents (PDF/Excel) & Live Sensor Data
+         │
+         ▼
+┌─────────────────────────────────┐
+│  Multi-Modal Extraction         │ OCR · Section-aware chunking
+│  (PyMuPDF, Tesseract)           │ Trust scoring · Entity extraction
+└───────────┬─────────────────────┘
+            │
+      ┌─────┴──────┐
+      ▼            ▼
+┌─────────┐  ┌──────────┐  ┌──────────────┐
+│ Vector  │  │Knowledge │  │  ML Engine   │ XGBoost RUL predictor
+│  Store  │  │  Graph   │  │  (Scikit)    │ Failure classifier
+│(Upstash)│  │(NetworkX)│  │              │ Synthetic degradation data
+└────┬────┘  └────┬─────┘  └──────┬───────┘
+     │            │               │
+     └──────┬─────┴───────────────┘
+            │  Evidence Fusion & Confidence Scoring
             ▼
-     ┌─────────────┐
-     │  Gemini LLM │  Consumer of intelligence, not the intelligence
-     └──────┬──────┘
+┌───────────────────────────┐
+│ Industrial Reasoning Agent│ (Primary: Gemini 1.5 Flash)
+│ Dual-LLM Redundancy       │ (Fallback: Groq / LLaMA 3)
+└───────────┬───────────────┘
             │
             ▼
-  Explainable Recommendation
-  + Citations + Confidence Meter
-  + Work Order PDF
+ Explainable Recommendation
+ + Citations + Confidence Meter
+ + Work Order PDF Generation
 ```
 
-## Hero Demo Flow
+## 🚀 Hero Demo Flow (What to show the judges)
 
+1. **Ingest:** Upload an industrial manual (PDF). Watch the Knowledge Graph build visibly as entities are extracted.
+2. **Simulate:** Go to the Query Engine and simulate a failing pump (e.g., Vibration > 7.8 mm/s, Temp > 85°C).
+3. **Reason:** Ask the agent what is happening.
+4. **Result:** The system returns:
+   - Root cause (e.g., Bearing Degradation) via XGBoost prediction.
+   - Source citations linking exactly to the uploaded manual via Upstash Vector.
+   - A transparent Confidence Breakdown: (e.g., Docs 42% | KG 27% | ML 22% | Rules 9%)
+5. **Action:** Click **Generate Work Order** to instantly create a PDF maintenance ticket.
+
+## 🛠 Local Setup (Run it yourself!)
+
+Kaizen AI is designed to run locally with lightning-fast Vite and FastAPI.
+
+### 1. Prerequisites
+- Python 3.10+
+- Node.js 18+
+
+### 2. Environment Variables
+Create a `.env` file in the root directory:
+```env
+# Primary LLM
+GEMINI_API_KEY=your_gemini_key
+
+# Fallback LLM (High-Availability Redundancy)
+GROQ_API_KEY=your_groq_key
+
+# Serverless Vector Database
+UPSTASH_VECTOR_REST_URL=your_upstash_url
+UPSTASH_VECTOR_REST_TOKEN=your_upstash_token
 ```
-1. Upload 10 industrial PDFs (manuals, logs, inspection reports)
-2. Knowledge Graph builds visibly
-3. Query: "Pump P-104 vibration increased to 7.8 mm/s"
-4. System returns:
-   - Root cause (bearing degradation)
-   - 3 source citations with sections
-   - ML prediction: 87% failure probability, 14 days RUL
-   - Confidence breakdown: Docs 42% | KG 27% | ML 22% | Rules 9%
-   - One-click Work Order PDF
-```
 
-## Setup
-
+### 3. Start the Backend (FastAPI + ML Engine)
+Open your terminal and run:
 ```bash
-# 1. Clone and install
+# Install dependencies
 pip install -r requirements.txt
 
-# Also install tesseract (for OCR)
-# Ubuntu: sudo apt install tesseract-ocr
-# Mac:    brew install tesseract
-
-# 2. Configure
-cp .env.example .env
-# Add your GEMINI_API_KEY
-
-# 3. Run backend
-cd api
-python main.py
-
-# 4. API docs
-open http://localhost:8000/docs
+# Start the server
+uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-## Free Cloud Deployment (Vercel + Render)
+### 4. Start the Frontend (React + Vite)
+Open a **second** terminal window:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+Navigate to `http://localhost:3000` to interact with Kaizen AI!
 
-Kaizen AI is fully configured to be deployed for free on Vercel (Frontend) and Render (Backend).
+## ☁️ Cloud Deployment (Vercel Monorepo)
 
-**1. Deploy Backend (Render)**
-- Create a new Web Service on [Render](https://render.com).
-- Connect your GitHub repository.
-- Render will automatically detect the `render.yaml` and `Dockerfile` to configure the environment.
-- Add your `GEMINI_API_KEY` to the Environment Variables.
-- Copy your deployed backend URL.
+The repository is configured for a **zero-config Serverless Vercel deployment**:
+1. Import this repository into Vercel.
+2. Add your `.env` variables to the Vercel Dashboard.
+3. Add `VITE_API_URL=/api` to route the React frontend to the Serverless Python backend.
+4. Deploy! Vercel will automatically build the Vite frontend and serve the FastAPI backend as Serverless Functions using the `vercel.json` rewrite rules.
 
-*Note: Render's free tier uses an ephemeral filesystem. Your ChromaDB and models will reset if the server goes to sleep. For persistence, upgrade to a paid disk.*
-
-**2. Deploy Frontend (Vercel)**
-- Create a new project on [Vercel](https://vercel.com) and link your GitHub repository.
-- Set the **Root Directory** to `frontend`.
-- Add an Environment Variable: `VITE_API_URL` with your Render backend URL.
-- Deploy.
-
-
-## Core Modules
-
-| File | Purpose |
-|------|---------|
-| `core/ingestion.py` | Document parsing, OCR, entity extraction, trust scoring |
-| `core/knowledge_graph.py` | Industrial ontology, graph traversal, Pyvis visualization |
-| `core/ml_engine.py` | XGBoost RUL + failure classifier, synthetic data generator |
-| `core/reasoning_engine.py` | Evidence fusion, confidence scoring, LLM explanation |
-| `api/main.py` | FastAPI backend, work order PDF generation |
-
-## API Endpoints
-
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| POST | `/ingest` | Upload documents |
-| POST | `/query` | Industrial Reasoning Engine |
-| POST | `/predict` | ML prediction from sensor data |
-| GET | `/kg/visualize` | Interactive KG visualization |
-| GET | `/kg/equipment/{id}` | Equipment context |
-| GET | `/dashboard` | Executive KPI summary |
-| POST | `/workorder` | Generate PDF work order |
-| GET | `/health` | Health check |
-
-## Judging Alignment
+## 🎯 Judging Alignment
 
 | Criterion | Implementation |
 |-----------|---------------|
-| Innovation | 3-source evidence fusion (not just RAG) · KG auto-relationship discovery |
-| Business Impact | End-to-end: document → decision → work order in <60 seconds |
-| Technical Excellence | Real XGBoost ML · Section-aware RAG · OCR confidence propagation |
-| Scalability | FastAPI · ChromaDB · NetworkX → Neo4j in production |
-| UX | Confidence meter · Source citations · Explainable AI output |
+| **Innovation** | 3-source evidence fusion (Vector + Graph + ML) instead of basic RAG. |
+| **Business Impact** | End-to-end automation: document → telemetry → decision → PDF work order. |
+| **Technical Excellence** | Real XGBoost ML models · Serverless Upstash Vector DB · Dual-LLM Groq/Gemini failover. |
+| **Scalability** | Stateless FastAPI · React/Vite · Serverless-ready architecture. |
+| **UX** | Transparent "Confidence Meter", specific source citations, and actionable UI. |
 
 ---
-*ET AI Hackathon 2.0 — Problem Statement #8: Industrial Knowledge Intelligence*
+*Built for ET AI Hackathon 2.0 — Problem Statement #8: Industrial Knowledge Intelligence*
