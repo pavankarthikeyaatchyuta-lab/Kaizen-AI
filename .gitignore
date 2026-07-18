@@ -16,7 +16,6 @@ __pycache__/
 chroma_db/
 uploads/
 exports/
-models/
 
 # Frontend
 node_modules/
