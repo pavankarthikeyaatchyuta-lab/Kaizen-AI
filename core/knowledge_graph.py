@@ -467,8 +467,8 @@ class KaizenKnowledgeGraph:
         else:
             G_vis = self.G
 
-        net = Network(height=height, width="100%", bgcolor="#1a1a2e",
-                      font_color="#ffffff", directed=True)
+        net = Network(height=height, width="100%", bgcolor="#070b14",
+                      font_color="#ffffff", directed=True, cdn_resources="remote")
         net.set_options("""
         {
           "nodes": {

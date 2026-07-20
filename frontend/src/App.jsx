@@ -36,30 +36,39 @@ const css = `
     --transition: 200ms ease;
   }
 
-  html, body, #root { height: 100%; }
+  html, body, #root { height: 100%; margin: 0; }
 
   body {
     font-family: var(--sans);
-    background: var(--bg-0);
+    background: transparent;
     color: var(--text-0);
     font-size: 14px;
     line-height: 1.5;
     overflow-x: hidden;
+    /* Custom Cursors */
+    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%23f59e0b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><line x1="12" y1="2" x2="12" y2="7"></line><line x1="12" y1="17" x2="12" y2="22"></line><line x1="2" y1="12" x2="7" y2="12"></line><line x1="17" y1="12" x2="22" y2="12"></line></svg>') 12 12, auto;
   }
 
-  /* Scrollbar */
-  ::-webkit-scrollbar { width: 6px; }
-  ::-webkit-scrollbar-track { background: var(--bg-1); }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  a, button, .nav-item, input, select, .kpi-card, .btn {
+    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%2314b8a6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>') 12 12, pointer !important;
+  }
 
-  .app { display: flex; height: 100vh; overflow: hidden; }
+  .vanta-bg {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: -1;
+  }
+
+  .app { display: flex; height: 100vh; overflow: hidden; background: transparent; }
 
   /* ── Sidebar ── */
   .sidebar {
     width: 220px;
     min-width: 220px;
-    background: var(--bg-1);
-    border-right: 1px solid var(--border);
+    background: rgba(17, 24, 39, 0.25);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
     display: flex;
     flex-direction: column;
     padding: 0;
@@ -134,8 +143,10 @@ const css = `
   }
   .topbar {
     padding: 14px 28px;
-    border-bottom: 1px solid var(--border);
-    background: var(--bg-1);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(17, 24, 39, 0.25);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -149,8 +160,11 @@ const css = `
 
   /* ── Cards ── */
   .card {
-    background: var(--bg-1);
-    border: 1px solid var(--border);
+    background: rgba(17, 24, 39, 0.25);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     border-radius: var(--radius-lg);
     padding: 20px;
   }
@@ -173,8 +187,11 @@ const css = `
 
   /* ── KPI cards ── */
   .kpi-card {
-    background: var(--bg-1);
-    border: 1px solid var(--border);
+    background: rgba(17, 24, 39, 0.25);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
     border-radius: var(--radius-lg);
     padding: 18px;
     position: relative;
@@ -478,14 +495,41 @@ const CONF_COLORS = ["#f59e0b","#14b8a6","#818cf8","#64748b"];
 export default function App() {
   const [page, setPage] = useState("dashboard");
   const [health, setHealth] = useState(null);
+  const [vantaEffect, setVantaEffect] = useState(null);
+  const myRef = useRef(null);
 
   useEffect(() => {
     fetch(`${API}/health`).then(r => r.json()).then(setHealth).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    if (!vantaEffect && window.VANTA) {
+      setVantaEffect(window.VANTA.NET({
+        el: myRef.current,
+        mouseControls: true,
+        touchControls: true,
+        gyroControls: false,
+        minHeight: 200.00,
+        minWidth: 200.00,
+        scale: 1.00,
+        scaleMobile: 1.00,
+        color: 0xf59e0b,
+        backgroundColor: 0x070b14,
+        points: 16.00,
+        maxDistance: 24.00,
+        spacing: 14.00,
+        showDots: true
+      }));
+    }
+    return () => {
+      if (vantaEffect) vantaEffect.destroy();
+    }
+  }, [vantaEffect]);
+
   return (
     <>
       <style>{css}</style>
+      <div className="vanta-bg" ref={myRef}></div>
       <div className="app">
         <Sidebar page={page} setPage={setPage} health={health} />
         <div className="main">
@@ -1031,13 +1075,13 @@ function KGPage() {
                  style={{maxWidth:200}}
                  onKeyDown={e=>e.key==="Enter"&&load()} />
           <button className="btn btn-primary" onClick={load}>Load Graph</button>
-          <button className="btn btn-ghost" onClick={()=>{setInput("");setKgUrl(`${API}/kg/visualize&t=${Date.now()}`)}}>
+          <button className="btn btn-ghost" onClick={()=>{setInput("");setKgUrl(`${API}/kg/visualize?t=${Date.now()}`)}}>
             Show All
           </button>
         </div>
         <div style={{borderRadius:var_radius_lg,overflow:"hidden",border:"1px solid var(--border)"}}>
           <iframe ref={iframeRef} src={kgUrl}
-                  style={{width:"100%",height:480,border:"none",background:"#1a1a2e"}}
+                  style={{width:"100%",height:480,border:"none",background:"transparent"}}
                   title="Knowledge Graph" />
         </div>
       </div>
